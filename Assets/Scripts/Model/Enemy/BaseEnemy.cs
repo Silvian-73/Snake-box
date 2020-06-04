@@ -1,4 +1,5 @@
 using ExampleTemplate;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
 using Object = UnityEngine.Object;
@@ -11,6 +12,8 @@ namespace Snake_box
     {
         #region PrivateData
 
+        private const float RESET_DELAY = .5f;
+
         protected ArmorType _armor;
         protected NavMeshAgent _navMeshAgent;
         protected GameObject _prefab;
@@ -18,6 +21,8 @@ namespace Snake_box
         protected Transform _transform;
         protected Transform _target;
         protected LevelService _levelService = Services.Instance.LevelService;
+        protected Rigidbody _rigidbody;
+        protected MonoBehaviour _monoBehaviour;
         protected float _hp;
         protected float _speed;
         protected float _damage;
@@ -27,6 +32,8 @@ namespace Snake_box
         protected bool _isNeedNavMeshUpdate = false;
         protected bool _isValidTarget;
         protected int _killReward;
+
+        private bool _resetPending = false;
 
         #endregion
 
@@ -43,6 +50,7 @@ namespace Snake_box
             _meleeHitRange = data.MeleeHitRange;
             _killReward = data.KillReward;
             _hitCooldown = data.HitCooldown;
+            _monoBehaviour = new MonoBehaviour();
         }
 
         #endregion
@@ -72,6 +80,7 @@ namespace Snake_box
             _isValidTarget = true;
             if (!_levelService.ActiveEnemies.Contains(this))
                 _levelService.ActiveEnemies.Add(this);
+            _rigidbody = _enemyObject.GetComponent<Rigidbody>();
         }
 
         public virtual void OnUpdate()
@@ -130,6 +139,7 @@ namespace Snake_box
                             _currentHitCooldown = _hitCooldown;
                         }
                         Data.Instance.Character._characterBehaviour.RamEnemy(this);
+                        StartResetCoroutine();
                     }
                     else if (colliders[i].CompareTag(TagManager.GetTag(TagType.Block)))
                     {
@@ -177,8 +187,31 @@ namespace Snake_box
                 _currentHitCooldown = 0;
         }
 
-        #endregion
+        private void ResetNavigationAndPhysics()
+        {
+            _rigidbody.velocity = Vector3.zero;
+            _rigidbody.angularVelocity = Vector3.zero;
+            _navMeshAgent.ResetPath();
+            _navMeshAgent.SetDestination(_target.position);
+        }
 
+        private void StartResetCoroutine()
+        {
+            if (_resetPending)
+                return;
+            MonoBehaviour mb = Object.FindObjectOfType<MonoBehaviour>();
+            mb.StartCoroutine(ResetCoroutine());
+        }
+
+        private IEnumerator ResetCoroutine()
+        {
+            _resetPending = true;
+            yield return new WaitForSeconds(RESET_DELAY);
+            ResetNavigationAndPhysics();
+            _resetPending = false;
+        }
+
+        #endregion
 
         #region IDamageAdressee
 
